@@ -51,15 +51,19 @@ class Discriminator(nn.Module):
     def __init__(self, transformer):
         super(Discriminator, self).__init__()
 
-        transformer = torch.load(transformer, torch.device('cpu'))
-        model = [   transformer,
-        nn.Linear(128, 50),
+        self.transformer = torch.load(transformer, torch.device('cpu'))
+        model = [nn.Linear(512, 50),
         nn.ReLU(),
-        nn.Linear(50, 1) ]
+        nn.Linear(50, 1)]
 
 
         self.model = nn.Sequential(*model)
+        self.final = nn.Linear(12, 1)
 
     def forward(self, x):
-        x = self.model(x)
-        return F.sigmoid(x)
+        mems = tuple()
+        x = self.transformer._forward(x, *mems)[0]
+        x = x.transpose(0,1)
+        x = self.model(x).squeeze(2)
+        x = self.final(x)
+        return torch.sigmoid(x)

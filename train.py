@@ -83,7 +83,6 @@ lakh_corpus_iter = nes_corpus_iter
 ###### Training ######
 for epoch in range(0, 100):
     for i, (data, _, bptt) in enumerate(tqdm(nes_corpus_iter)):
-        print(data)
         # Set model input
         real_A = data.clone().detach()
         # Change this to include other dataset
@@ -96,30 +95,30 @@ for epoch in range(0, 100):
         # Identity loss
         # G_A2B(B) should equal B if real B is fed
         same_B = netG_A2B(real_B, bptt)
-        print(same_B)
-        loss_identity_B = criterion_identity(same_B, real_B)*5.0
+        loss_identity_B = criterion_identity(same_B.float(), real_B.float())*5.0
         # G_B2A(A) should equal A if real A is fed
-        same_A = netG_B2A(real_Am, bptt)
-        loss_identity_A = criterion_identity(same_A, real_A)*5.0
+        same_A = netG_B2A(real_A, bptt)
+        loss_identity_A = criterion_identity(same_A.float(), real_A.float())*5.0
 
         # GAN loss
         fake_B = netG_A2B(real_A, bptt)
         pred_fake = netD_B(fake_B)
-        loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
+        loss_GAN_A2B = criterion_GAN(pred_fake.float(), target_real.float())
 
         fake_A = netG_B2A(real_B, bptt)
         pred_fake = netD_A(fake_A)
-        loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
+        loss_GAN_B2A = criterion_GAN(pred_fake.float(), target_real.float())
 
         # Cycle loss
         recovered_A = netG_B2A(fake_B, bptt)
-        loss_cycle_ABA = criterion_cycle(recovered_A, real_A)*10.0
+        loss_cycle_ABA = criterion_cycle(recovered_A.float(), real_A.float())*10.0
 
         recovered_B = netG_A2B(fake_A, bptt)
-        loss_cycle_BAB = criterion_cycle(recovered_B, real_B)*10.0
+        loss_cycle_BAB = criterion_cycle(recovered_B.float(), real_B.float())*10.0
 
         # Total loss
         loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
+        print(loss_G)
         loss_G.backward()
         optimizer_G.step()
         ###################################
