@@ -1,10 +1,7 @@
 import torch.nn as nn
-import torch.load as load
 import torch.nn.functional as F
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.autograd import Variable
 
 def sample_gumbel(shape, eps=1e-20):
     U = torch.rand(shape)
@@ -25,46 +22,44 @@ def gumbel_softmax(logits, temperature):
     y_hard = torch.zeros_like(y).view(-1, shape[-1])
     y_hard.scatter_(1, ind.view(-1, 1), 1)
     y_hard = y_hard.view(*shape)
-    return (y_hard - y).detach() + y
+    return torch.nonzero((y_hard - y).detach() + y)
 
 class Generator(nn.Module):
     def __init__(self, transformer):
         super(Generator, self).__init__()
 
         # Load transformer
-        transformer = torch.load(transformer, torch.device('cpu'))
-        self.model = transformer
+        self.model = torch.load(transformer, torch.device('cpu'))
 
-    def forward(self, x):
+    def forward(self, x, bptt):
         seq = []
         mems = tuple()
-        # Compute sequence of 128 chars
-        for i in range(128)
-            ret = self.model(data, target, *mems)
+        # Compute sequence of 128 tokens
+        for i in range(bptt):
+            ret = self.model._forward(x, *mems)
             # Get probabilities of next token
-            probs, mems[i] = ret[0], ret[1:]
+            probs, mems = ret[0], ret[1:]
             # Sample token with temeperature 0.1
-            next_tok = gumbel_softmax(probs, 0.1)
+            next_tok = gumbel_softmax(probs[-1, :, :], 0.1)[:, 1].unsqueeze(0)
             # Shift and concatenate next token
-            data = data[:, 1:]
-            data = data.concatenate(next_tok, axis=1)
-            print(next_tok)
+            x = x[1:, :]
+            x = torch.cat([x, next_tok], 0)
 
-        return data
+        return x
 
-class Discriminator(nn.Module, transformer):
-    def __init__(self, input_nc):
+class Discriminator(nn.Module):
+    def __init__(self, transformer):
         super(Discriminator, self).__init__()
 
         transformer = torch.load(transformer, torch.device('cpu'))
         model = [   transformer,
         nn.Linear(128, 50),
-        nn.LeakyRelu(),
-        nn.Linear(50, 2)
-        nn.Softmax(2)]
+        nn.ReLU(),
+        nn.Linear(50, 1) ]
 
 
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
-        return self.model(x)
+        x = self.model(x)
+        return F.sigmoid(x)

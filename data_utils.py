@@ -4,6 +4,7 @@ import glob
 from collections import Counter, OrderedDict
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from utils.vocabulary import Vocab
 
@@ -184,7 +185,7 @@ class LMMultiFileIterator(LMShuffledIterator):
             np.random.shuffle(self.paths)
 
         sents = []
-        for path in self.paths:
+        for path in tqdm(self.paths):
             sents.extend(self.vocab.encode_file(path, add_double_eos=True,
               augment_transpose=self.augment_transpose,
               augment_stretch=self.augment_stretch,
