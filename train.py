@@ -28,7 +28,6 @@ parser.add_argument('--input_nc', type=int, default=3, help='number of channels 
 parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--transformer', type=str, default='model.pt', help='pre-trained transformer')
 
 opt = parser.parse_args()
 print(opt)
@@ -38,10 +37,13 @@ if torch.cuda.is_available() and not opt.cuda:
 
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(opt.transformer)
-netG_B2A = Generator(opt.transformer)
-netD_A = Discriminator(opt.transformer)
-netD_B = Discriminator(opt.transformer)
+netG_A2B = Generator()
+netG_B2A = Generator()
+netD_A = Discriminator()
+netD_B = Discriminator()
+netC = CycleLoss()
+
+cycle_loss = CycleLoss()
 
 if opt.cuda:
     netG_A2B.cuda()
@@ -50,31 +52,28 @@ if opt.cuda:
     netD_B.cuda()
 
 # Lossess
-criterion_GAN = torch.nn.MSELoss()
-criterion_cycle = torch.nn.L1Loss()
-criterion_identity = torch.nn.L1Loss()
+criterion_GAN = torch.nn.CrossEntropyLoss()
+criterion_cycle = torch.nn.CrossEntropyLoss()
 
 # Optimizers & LR schedulers
 optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
                                 lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_A = torch.optim.Adam(netD_A.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_B = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+optimizer_cycle = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 
 lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(optimizer_D_A, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(optimizer_D_B, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
+lr_scheduler_recon = torch.optim.lr_scheduler.LambdaLR(optimizer_cycle, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 
 # Inputs & targets memory allocation
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
 target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
-fake_A_buffer = ReplayBuffer()
-fake_B_buffer = ReplayBuffer()
-
-
-nes_corpus = get_lm_corpus('data/nesmdb_tx10', 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('train', bsz=2, bptt=12)
+nes_corpus = get_lm_corpus('data/nesmdb_tx1', 'nesmdb')
+nes_corpus_iter = nes_corpus.get_iterator('train', bsz=1, bptt=12)
 lakh_corpus_iter = nes_corpus_iter
 
 # Loss plot
@@ -92,14 +91,6 @@ for epoch in range(0, 100):
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()
 
-        # Identity loss
-        # G_A2B(B) should equal B if real B is fed
-        same_B = netG_A2B(real_B, bptt)
-        loss_identity_B = criterion_identity(same_B.float(), real_B.float())*5.0
-        # G_B2A(A) should equal A if real A is fed
-        same_A = netG_B2A(real_A, bptt)
-        loss_identity_A = criterion_identity(same_A.float(), real_A.float())*5.0
-
         # GAN loss
         fake_B = netG_A2B(real_A, bptt)
         pred_fake = netD_B(fake_B)
@@ -111,14 +102,13 @@ for epoch in range(0, 100):
 
         # Cycle loss
         recovered_A = netG_B2A(fake_B, bptt)
-        loss_cycle_ABA = criterion_cycle(recovered_A.float(), real_A.float())*10.0
+        loss_cycle_ABA = netC(real_A, recovered_A)*10.0
 
         recovered_B = netG_A2B(fake_A, bptt)
-        loss_cycle_BAB = criterion_cycle(recovered_B.float(), real_B.float())*10.0
+        loss_cycle_BAB = netC(real_A, recovered_A)*10.0
 
         # Total loss
-        loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
-        print(loss_G)
+        loss_G = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
         loss_G.backward()
         optimizer_G.step()
         ###################################
@@ -131,7 +121,6 @@ for epoch in range(0, 100):
         loss_D_real = criterion_GAN(pred_real, target_real)
 
         # Fake loss
-        fake_A = fake_A_buffer.push_and_pop(fake_A)
         pred_fake = netD_A(fake_A.detach())
         loss_D_fake = criterion_GAN(pred_fake, target_fake)
 
@@ -150,7 +139,6 @@ for epoch in range(0, 100):
         loss_D_real = criterion_GAN(pred_real, target_real)
 
         # Fake loss
-        fake_B = fake_B_buffer.push_and_pop(fake_B)
         pred_fake = netD_B(fake_B.detach())
         loss_D_fake = criterion_GAN(pred_fake, target_fake)
 
@@ -161,15 +149,42 @@ for epoch in range(0, 100):
         optimizer_D_B.step()
         ###################################
 
+        ###### Cycle loss ######
+        optimizer_cycle.zero_grad()
+
+        # A-A
+        pred_real = CycleLoss(real_A.detach(), real_A.detach())
+        loss_real_A = criterion_cycle(pred_real, target_real)
+
+        # A-A*
+        pred_fake = CycleLoss(real_A.detach(), fake_A.detach())
+        loss_fake_A = criterion_cycle(pred_fake, target_fake)
+
+        # B-B
+        pred_real = CycleLoss(real_B.detach(), real_B.detach())
+        loss_real_B = criterion_cycle(pred_real, target_real)
+
+        # B-B*
+        pred_fake = CycleLoss(real_B.detach(), fake_B.detach())
+        loss_fake_B = criterion_cycle(pred_fake, target_fake)
+
+        # Total loss
+        loss_cycle = (loss_real_A + loss_real_B + loss_fake_A + loss_fake_B)*0.25
+        loss_cycle.backward()
+
+        optimizer_cycle.step()
+        ###################################
+
 
     # Update learning rates
     lr_scheduler_G.step()
     lr_scheduler_D_A.step()
     lr_scheduler_D_B.step()
 
-    # # Save models checkpoints
-    # torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
-    # torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
-    # torch.save(netD_A.state_dict(), 'output/netD_A.pth')
-    # torch.save(netD_B.state_dict(), 'output/netD_B.pth')
+    # Save models checkpoints
+    torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
+    torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
+    torch.save(netD_A.state_dict(), 'output/netD_A.pth')
+    torch.save(netD_B.state_dict(), 'output/netD_B.pth')
+    torch.save(netC.state_dict(), 'output/netC.pth')
 ###################################
