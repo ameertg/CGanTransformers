@@ -6,8 +6,7 @@ import itertools
 from torch.autograd import Variable
 import torch
 
-from models import Generator
-from models import Discriminator
+from models import Generator, Discriminator, CycleLoss
 from cgan_utils import ReplayBuffer
 from cgan_utils import LambdaLR
 from data_utils import *
@@ -46,8 +45,8 @@ if opt.cuda:
     netD_B.cuda()
 
 # Lossess
-criterion_GAN = torch.nn.CrossEntropyLoss()
-criterion_cycle = torch.nn.CrossEntropyLoss()
+criterion_GAN = torch.nn.MSELoss()
+criterion_cycle = torch.nn.MSELoss()
 
 # Optimizers & LR schedulers
 optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
@@ -67,19 +66,18 @@ target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
 nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
-lakh_corpus = get_lm_corpus(opt.lakh, 'lm1b')
+nes_corpus_iter = nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=40)
+lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
 lakh_corpus_iter = lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
 
-data_stream = zip(nes_corpus, lakh_corpus_iter)
+data_stream = zip(nes_corpus_iter, lakh_corpus_iter)
 ###################################
 
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
-    for i, ((nes, _), (lakh, _)) in enumerate(tqdm(data_stream)):
+    for i, ((nes, bptt), (lakh, _)) in enumerate(tqdm(data_stream)):
         # Set model input
         real_A = nes.clone().detach()
-
         real_B =  lakh.clone().detach()
 
 
@@ -88,19 +86,20 @@ for epoch in range(0, opt.n_epochs):
 
         # GAN loss
         fake_B = netG_A2B(real_A, bptt)
-        pred_fake = netD_B(fake_B)
-        loss_GAN_A2B = criterion_GAN(pred_fake.float(), target_real.float())
+        pred_fake = netD_B(fake_B).float()
+
+        loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
 
         fake_A = netG_B2A(real_B, bptt)
-        pred_fake = netD_A(fake_A)
-        loss_GAN_B2A = criterion_GAN(pred_fake.float(), target_real.float())
+        pred_fake = netD_A(fake_A).float()
+        loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
         # Cycle loss
         recovered_A = netG_B2A(fake_B, bptt)
-        loss_cycle_ABA = netC(real_A, recovered_A)*10.0
+        loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
 
         recovered_B = netG_A2B(fake_A, bptt)
-        loss_cycle_BAB = netC(real_A, recovered_A)*10.0
+        loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
         # Total loss
         loss_G = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
@@ -148,19 +147,19 @@ for epoch in range(0, opt.n_epochs):
         optimizer_cycle.zero_grad()
 
         # A-A
-        pred_real = CycleLoss(real_A.detach(), real_A.detach())
+        pred_real = netC(real_A.detach(), real_A.detach())
         loss_real_A = criterion_cycle(pred_real, target_real)
 
         # A-A*
-        pred_fake = CycleLoss(real_A.detach(), fake_A.detach())
+        pred_fake = netC(real_A.detach(), fake_A.detach())
         loss_fake_A = criterion_cycle(pred_fake, target_fake)
 
         # B-B
-        pred_real = CycleLoss(real_B.detach(), real_B.detach())
+        pred_real = netC(real_B.detach(), real_B.detach())
         loss_real_B = criterion_cycle(pred_real, target_real)
 
         # B-B*
-        pred_fake = CycleLoss(real_B.detach(), fake_B.detach())
+        pred_fake = netC(real_B.detach(), fake_B.detach())
         loss_fake_B = criterion_cycle(pred_fake, target_fake)
 
         # Total loss

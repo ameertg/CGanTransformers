@@ -10,7 +10,7 @@ class Sampler(object):
         return -Variable(torch.log(-torch.log(U + eps) + eps))
 
     def gumbel_softmax_sample(logits, temperature):
-        y = logits + sample_gumbel(logits.size())
+        y = logits + Sampler.sample_gumbel(logits.size())
         return F.softmax(y / temperature, dim=-1)
 
     def gumbel_softmax(logits, temperature):
@@ -18,7 +18,7 @@ class Sampler(object):
         input: [*, n_class]
         return: [*, n_class] an one-hot vector
         """
-        y = gumbel_softmax_sample(logits, temperature)
+        y = Sampler.gumbel_softmax_sample(logits, temperature)
         shape = y.size()
         _, ind = y.max(dim=-1)
         y_hard = torch.zeros_like(y).view(-1, shape[-1])
@@ -83,37 +83,41 @@ class Generator(nn.Module):
         self.custom_transformer = True
         self.model = TransformerModel(631, 40, 8, 120, 6)
 
-    def forward(self, x, bptt, eos):
+    def forward(self, x, bptt):
+        in_shape = x.shape
         x = self.model(x)
         x = Sampler.gumbel_softmax(x, 0.1)
-        x = torch.nonzero(x, as_tuple=True)[2].reshape(12, 2)
-        x = x
+        x = torch.nonzero(x, as_tuple=True)[2].reshape(in_shape)
         return x
 
 class Discriminator(nn.Module):
-    def __init__(self, transformer):
+    def __init__(self):
         super(Discriminator, self).__init__()
 
 
         self.custom_transformer = True
         self.model = TransformerModel(631, 40, 8, 120, 6)
-        self.linear_out = nn.Linear(631, 1)
+        self.linear_out = nn.Linear(631 * 40, 1)
 
-    def forward(self, x):
+    def forward(self, x, ):
         x = self.model(x)
+        x = x.transpose(0, 1).reshape(x.shape[1], -1)
         x = self.linear_out(x)
-        return F.sigmoid(x)
+        x = torch.sigmoid(x).flatten()
+        return x
 
 class CycleLoss(nn.Module):
 
-    def __init__(self, transformer):
-        super(Discriminator, self).__init__()
+    def __init__(self):
+        super(CycleLoss, self).__init__()
 
         self.model = TransformerModel(631, 80, 8, 160, 6)
-        self.linear_out = nn.Linear(631, 1)
+        self.linear_out = nn.Linear(631*80, 1)
 
-    def forward(self, x, y, label):
-            x = x.cat(y)
-            x = self.model(x)
-            x = self.linear_out(x)
-        return F.sigmoid(x)
+    def forward(self, x, y):
+        x = torch.cat([x, y])
+        x = self.model(x)
+        x = x.transpose(0, 1).reshape(x.shape[1], -1)
+        x = self.linear_out(x)
+        x = torch.sigmoid(x).flatten()
+        return x
