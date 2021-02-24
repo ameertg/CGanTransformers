@@ -3,9 +3,7 @@
 import argparse
 import itertools
 
-import torchvision.transforms as transforms
 from torch.autograd import Variable
-from PIL import Image
 import torch
 
 from models import Generator
@@ -19,13 +17,11 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
-parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
-parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
+parser.add_argument('--batchSize', type=int, default=10, help='size of the batches')
+parser.add_argument('--nes', type=str, default='data/nesmbd_tx1', help='root directory of the dataset')
+parser.add_argument('--lakh', type=str, default='data/lmdb_tx1', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
-parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
-parser.add_argument('--input_nc', type=int, default=3, help='number of channels of input data')
-parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 
@@ -43,8 +39,6 @@ netD_A = Discriminator()
 netD_B = Discriminator()
 netC = CycleLoss()
 
-cycle_loss = CycleLoss()
-
 if opt.cuda:
     netG_A2B.cuda()
     netG_B2A.cuda()
@@ -60,32 +54,33 @@ optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.p
                                 lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_A = torch.optim.Adam(netD_A.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_B = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
-optimizer_cycle = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+optimizer_cycle = torch.optim.Adam(netC.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 
 lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(optimizer_D_A, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(optimizer_D_B, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
-lr_scheduler_recon = torch.optim.lr_scheduler.LambdaLR(optimizer_cycle, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
+lr_scheduler_cycle = torch.optim.lr_scheduler.LambdaLR(optimizer_cycle, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 
 # Inputs & targets memory allocation
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
 target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
-nes_corpus = get_lm_corpus('data/nesmdb_tx1', 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('train', bsz=1, bptt=12)
-lakh_corpus_iter = nes_corpus_iter
+nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
+nes_corpus_iter = nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
+lakh_corpus = get_lm_corpus(opt.lakh, 'lm1b')
+lakh_corpus_iter = lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
 
-# Loss plot
+data_stream = zip(nes_corpus, lakh_corpus_iter)
 ###################################
 
 ###### Training ######
-for epoch in range(0, 100):
-    for i, (data, _, bptt) in enumerate(tqdm(nes_corpus_iter)):
+for epoch in range(0, opt.n_epochs):
+    for i, ((nes, _), (lakh, _)) in enumerate(tqdm(data_stream)):
         # Set model input
-        real_A = data.clone().detach()
-        # Change this to include other dataset
-        real_B =  data.clone().detach()
+        real_A = nes.clone().detach()
+
+        real_B =  lakh.clone().detach()
 
 
         ###### Generators A2B and B2A ######
@@ -180,6 +175,7 @@ for epoch in range(0, 100):
     lr_scheduler_G.step()
     lr_scheduler_D_A.step()
     lr_scheduler_D_B.step()
+    lr_scheduler_cycle
 
     # Save models checkpoints
     torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')

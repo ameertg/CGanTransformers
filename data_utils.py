@@ -39,9 +39,8 @@ class LMOrderedIterator(object):
         beg_idx = max(0, i - self.ext_len)
 
         data = self.data[beg_idx:end_idx]
-        target = self.data[i+1:i+1+seq_len]
 
-        return data, target, seq_len
+        return data, seq_len
 
     def get_fixlen_iter(self, start=0):
         for i in range(start, self.data.size(0) - 1, self.bptt):
@@ -53,9 +52,9 @@ class LMOrderedIterator(object):
         while True:
             bptt = self.bptt if np.random.random() < 0.95 else self.bptt / 2.
             bptt = min(max_len, max(min_len, int(np.random.normal(bptt, std))))
-            data, target, seq_len = self.get_batch(i, bptt)
+            data, seq_len = self.get_batch(i, bptt)
             i += seq_len
-            yield data, target, seq_len
+            yield data, seq_len
             if i >= self.data.size(0) - 2:
                 break
 
@@ -91,15 +90,12 @@ class LMShuffledIterator(object):
         streams = [None] * self.bsz
 
         data = torch.LongTensor(self.bptt, self.bsz)
-        target = torch.LongTensor(self.bptt, self.bsz)
 
         n_retain = 0
 
         while True:
             # data   : [n_retain+bptt x bsz]
-            # target : [bptt x bsz]
             data[n_retain:].fill_(-1)
-            target.fill_(-1)
 
             valid_batch = True
 
@@ -114,8 +110,6 @@ class LMShuffledIterator(object):
                         # first n_retain tokens are retained from last batch
                         data[n_retain+n_filled:n_retain+n_filled+n_new, i] = \
                             streams[i][:n_new]
-                        target[n_filled:n_filled+n_new, i] = \
-                            streams[i][1:n_new+1]
                         streams[i] = streams[i][n_new:]
                         n_filled += n_new
                 except StopIteration:
@@ -126,9 +120,8 @@ class LMShuffledIterator(object):
                 return
 
             data = data.to(self.device)
-            target = target.to(self.device)
 
-            yield data, target, self.bptt
+            yield data, self.bptt
 
             n_retain = min(data.size(0), self.ext_len)
             if n_retain > 0:
