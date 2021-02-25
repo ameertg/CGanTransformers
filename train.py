@@ -11,7 +11,7 @@ from cgan_utils import ReplayBuffer
 from cgan_utils import LambdaLR
 from data_utils import *
 
-from tqdm import tqdm
+from tqdm import trange
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
@@ -43,6 +43,7 @@ if opt.cuda:
     netG_B2A.cuda()
     netD_A.cuda()
     netD_B.cuda()
+    netC.cuda()
 
 # Lossess
 criterion_GAN = torch.nn.MSELoss()
@@ -66,16 +67,24 @@ target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
 nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=40)
+nes_corpus_iter = nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
 lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
 lakh_corpus_iter = lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
 
-data_stream = zip(nes_corpus_iter, lakh_corpus_iter)
+
+
+results = {'GAN_AB': [], 'GAN_BA': [],
+ 'D_A': [], 'D_B': [],
+ 'C_A': [], 'C_B': [],
+ 'AA': []}
 ###################################
 
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
+    data_stream = zip(nes_corpus_iter, lakh_corpus_iter)
     for i, ((nes, bptt), (lakh, _)) in enumerate(tqdm(data_stream)):
+        if i ==2:
+            break
         # Set model input
         real_A = nes.clone().detach()
         real_B =  lakh.clone().detach()
@@ -105,6 +114,17 @@ for epoch in range(0, opt.n_epochs):
         loss_G = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
         loss_G.backward()
         optimizer_G.step()
+
+        if i == 0:
+            results['GAN_AB'].append(loss_GAN_A2B.item())
+            results['GAN_BA'].append(loss_GAN_B2A.item())
+            results['C_A'].append(loss_cycle_ABA.item())
+            results['C_B'].append(loss_cycle_BAB.item())
+        else:
+            results['GAN_AB'][-1] += loss_GAN_A2B.item()
+            results['GAN_BA'][-1] += loss_GAN_B2A.item()
+            results['C_A'][-1] += loss_cycle_ABA.item()
+            results['C_B'][-1] += loss_cycle_BAB.item()
         ###################################
 
         ###### Discriminator A ######
@@ -141,6 +161,15 @@ for epoch in range(0, opt.n_epochs):
         loss_D_B.backward()
 
         optimizer_D_B.step()
+
+
+        if i == 0:
+            results['D_A'].append(loss_D_A.item())
+            results['D_B'].append(loss_D_B.item())
+        else:
+            results['D_A'][-1] += loss_D_A.item()
+            results['D_B'][-1] += loss_D_B.item()
+
         ###################################
 
         ###### Cycle loss ######
@@ -167,6 +196,11 @@ for epoch in range(0, opt.n_epochs):
         loss_cycle.backward()
 
         optimizer_cycle.step()
+
+        if i == 0:
+            results['AA'].append(loss_cycle.item())
+        else:
+            results['AA'][-1] += loss_cycle.item()
         ###################################
 
 
@@ -174,9 +208,13 @@ for epoch in range(0, opt.n_epochs):
     lr_scheduler_G.step()
     lr_scheduler_D_A.step()
     lr_scheduler_D_B.step()
-    lr_scheduler_cycle
+    lr_scheduler_cycle.step()
+
+    for key in results.keys():
+        print(f'{key} loss: {results[key][-1]}')
 
     # Save models checkpoints
+    torch.save(results, 'output/results.pth')
     torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
     torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
     torch.save(netD_A.state_dict(), 'output/netD_A.pth')
