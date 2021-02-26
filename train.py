@@ -67,9 +67,9 @@ target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
 nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
+nes_corpus_iter = iter(nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40))
 lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
-lakh_corpus_iter = lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40)
+lakh_corpus_iter = iter(lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40))
 
 
 
@@ -79,15 +79,14 @@ results = {'GAN_AB': [], 'GAN_BA': [],
  'AA': []}
 ###################################
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
     data_stream = zip(nes_corpus_iter, lakh_corpus_iter)
     for i, ((nes, bptt), (lakh, _)) in enumerate(tqdm(data_stream)):
-        if i ==2:
-            break
         # Set model input
-        real_A = nes.clone().detach().cuda()
-        real_B =  lakh.clone().detach().cuda()
+        real_A = nes.clone().detach().to(device)
+        real_B =  lakh.clone().detach().to(device)
 
 
         ###### Generators A2B and B2A ######
