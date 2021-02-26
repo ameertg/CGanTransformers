@@ -86,8 +86,8 @@ for epoch in range(0, opt.n_epochs):
         if i ==2:
             break
         # Set model input
-        real_A = nes.clone().detach()
-        real_B =  lakh.clone().detach()
+        real_A = nes.clone().detach().cuda()
+        real_B =  lakh.clone().detach().cuda()
 
 
         ###### Generators A2B and B2A ######
