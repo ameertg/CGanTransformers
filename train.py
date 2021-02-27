@@ -5,6 +5,7 @@ import itertools
 
 from torch.autograd import Variable
 import torch
+import torch.nn as nn
 
 from models import Generator, Discriminator, CycleLoss
 from cgan_utils import ReplayBuffer
@@ -30,13 +31,14 @@ print(opt)
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
+n_words = 40
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator()
-netG_B2A = Generator()
-netD_A = Discriminator()
-netD_B = Discriminator()
-netC = CycleLoss()
+netG_A2B = Generator(n_words)
+netG_B2A = Generator(n_words)
+netD_A = Discriminator(n_words)
+netD_B = Discriminator(n_words)
+netC = CycleLoss(n_words)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -77,9 +79,9 @@ target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
 nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = iter(nes_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40))
+nes_corpus_iter = iter(nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=n_words))
 lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
-lakh_corpus_iter = iter(lakh_corpus.get_iterator('train', bsz=opt.batchSize, bptt=40))
+lakh_corpus_iter = iter(lakh_corpus.get_iterator('test', bsz=opt.batchSize, bptt=n_words))
 
 
 

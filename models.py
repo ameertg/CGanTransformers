@@ -10,7 +10,7 @@ class Sampler(object):
         return -Variable(torch.log(-torch.log(U + eps) + eps))
 
     def gumbel_softmax_sample(logits, temperature):
-        y = logits + Sampler.sample_gumbel(logits.size())
+        y = logits + Sampler.sample_gumbel(logits.size()).to(logits.device)
         return F.softmax(y / temperature, dim=-1)
 
     def gumbel_softmax(logits, temperature):
@@ -76,12 +76,12 @@ class TransformerModel(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self):
+    def __init__(self, n_words):
         super(Generator, self).__init__()
 
 
         self.custom_transformer = True
-        self.model = TransformerModel(631, 40, 8, 120, 6)
+        self.model = TransformerModel(631, n_words, 8, 120, 6)
 
     def forward(self, x, bptt):
         in_shape = x.shape
@@ -91,33 +91,33 @@ class Generator(nn.Module):
         return x
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, n_words):
         super(Discriminator, self).__init__()
 
 
         self.custom_transformer = True
-        self.model = TransformerModel(631, 40, 8, 120, 6)
-        self.linear_out = nn.Linear(631 * 40, 1)
+        self.model = TransformerModel(631, n_words, 8, 120, 6)
+        self.linear_out = nn.Linear(631 * n_words, 1)
 
     def forward(self, x, ):
         x = self.model(x)
-        x = x.transpose(0, 1).view(x.shape[1], -1)
+        x = x.transpose(0, 1).contiguous().view(x.shape[1], -1)
         x = self.linear_out(x)
         x = torch.sigmoid(x).flatten()
         return x
 
 class CycleLoss(nn.Module):
 
-    def __init__(self):
+    def __init__(self, n_words):
         super(CycleLoss, self).__init__()
 
-        self.model = TransformerModel(631, 80, 8, 160, 6)
-        self.linear_out = nn.Linear(631*80, 1)
+        self.model = TransformerModel(631, n_words*2, 8, 160, 6)
+        self.linear_out = nn.Linear(631*n_words*2, 1)
 
     def forward(self, x, y):
         x = torch.cat([x, y])
         x = self.model(x)
-        x = x.transpose(0, 1).view(x.shape[1], -1)
+        x = x.transpose(0, 1).contiguous().view(x.shape[1], -1)
         x = self.linear_out(x)
         x = torch.sigmoid(x).view(-1)
         return x
