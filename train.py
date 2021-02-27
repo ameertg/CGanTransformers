@@ -38,12 +38,22 @@ netD_A = Discriminator()
 netD_B = Discriminator()
 netC = CycleLoss()
 
-if opt.cuda:
-    netG_A2B.cuda()
-    netG_B2A.cuda()
-    netD_A.cuda()
-    netD_B.cuda()
-    netC.cuda()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+if torch.cuda.device_count() > 1:
+  print("Let's use", torch.cuda.device_count(), "GPUs!")
+  # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+  netG_A2B = nn.DataParallel(netG_A2B)
+  netG_B2A = nn.DataParallel(netG_B2A)
+  netD_A = nn.DataParallel(detD_A)
+  netD_B = nn.DataParallel(netD_B)
+  netC = nn.DataParallel(netC)
+
+netG_A2B.to(device)
+netG_B2A.to(device)
+netD_A.to(device)
+netD_B.to(device)
+netC.to(device)
 
 # Lossess
 criterion_GAN = torch.nn.MSELoss()
@@ -79,7 +89,7 @@ results = {'GAN_AB': [], 'GAN_BA': [],
  'AA': []}
 ###################################
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
     data_stream = zip(nes_corpus_iter, lakh_corpus_iter)

@@ -87,7 +87,7 @@ class Generator(nn.Module):
         in_shape = x.shape
         x = self.model(x)
         x = Sampler.gumbel_softmax(x, 0.1)
-        x = torch.nonzero(x, as_tuple=True)[2].reshape(in_shape)
+        x = torch.nonzero(x, as_tuple=True)[2].view(in_shape)
         return x
 
 class Discriminator(nn.Module):
@@ -101,7 +101,7 @@ class Discriminator(nn.Module):
 
     def forward(self, x, ):
         x = self.model(x)
-        x = x.transpose(0, 1).reshape(x.shape[1], -1)
+        x = x.transpose(0, 1).view(x.shape[1], -1)
         x = self.linear_out(x)
         x = torch.sigmoid(x).flatten()
         return x
@@ -117,7 +117,7 @@ class CycleLoss(nn.Module):
     def forward(self, x, y):
         x = torch.cat([x, y])
         x = self.model(x)
-        x = x.transpose(0, 1).reshape(x.shape[1], -1)
+        x = x.transpose(0, 1).view(x.shape[1], -1)
         x = self.linear_out(x)
-        x = torch.sigmoid(x).flatten()
+        x = torch.sigmoid(x).view(-1)
         return x
