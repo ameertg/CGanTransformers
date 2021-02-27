@@ -7,10 +7,10 @@ import math
 class Sampler(object):
     def sample_gumbel(shape, eps=1e-20):
         U = torch.rand(shape)
-        return -Variable(torch.log(-torch.log(U + eps) + eps))
+        return -torch.log(-torch.log(U + eps) + eps)
 
     def gumbel_softmax_sample(logits, temperature):
-        y = logits + Sampler.sample_gumbel(logits.size())
+        y = logits + Sampler.sample_gumbel(logits.size()).to(logits.device)
         return F.softmax(y / temperature, dim=-1)
 
     def gumbel_softmax(logits, temperature):
