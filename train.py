@@ -47,9 +47,7 @@ if torch.cuda.device_count() > 1:
   # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
   netG_A2B = nn.DataParallel(netG_A2B)
   netG_B2A = nn.DataParallel(netG_B2A)
-  netD_A = nn.DataParallel(detD_A)
-  netD_B = nn.DataParallel(netD_B)
-  netC = nn.DataParallel(netC)
+
 
 netG_A2B.to(device)
 netG_B2A.to(device)
@@ -79,9 +77,9 @@ target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
 nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = iter(nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=n_words))
+nes_corpus_iter = nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=n_words, device=device)
 lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
-lakh_corpus_iter = iter(lakh_corpus.get_iterator('test', bsz=opt.batchSize, bptt=n_words))
+lakh_corpus_iter = lakh_corpus.get_iterator('test', bsz=opt.batchSize, bptt=n_words, device=device)
 
 
 
@@ -94,12 +92,9 @@ results = {'GAN_AB': [], 'GAN_BA': [],
 
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
-    data_stream = zip(nes_corpus_iter, lakh_corpus_iter)
-    for i, ((nes, bptt), (lakh, _)) in enumerate(tqdm(data_stream)):
-        # Set model input
-        real_A = nes.clone().detach().to(device)
-        real_B =  lakh.clone().detach().to(device)
 
+    data_stream = zip(iter(nes_corpus_iter), iter(lakh_corpus_iter))
+    for i, ((real_A, bptt), (real_B, _)) in enumerate(tqdm(data_stream)):
 
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()

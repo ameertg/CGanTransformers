@@ -81,7 +81,7 @@ class Generator(nn.Module):
 
 
         self.custom_transformer = True
-        self.model = TransformerModel(631, n_words, 8, 120, 6)
+        self.model = TransformerModel(631, n_words, 2, 120, 6)
 
     def forward(self, x, bptt):
         in_shape = x.shape
@@ -96,10 +96,10 @@ class Discriminator(nn.Module):
 
 
         self.custom_transformer = True
-        self.model = TransformerModel(631, n_words, 8, 120, 6)
+        self.model = TransformerModel(631, n_words, 2, 120, 6)
         self.linear_out = nn.Linear(631 * n_words, 1)
 
-    def forward(self, x, ):
+    def forward(self, x):
         x = self.model(x)
         x = x.transpose(0, 1).contiguous().view(x.shape[1], -1)
         x = self.linear_out(x)
@@ -111,7 +111,7 @@ class CycleLoss(nn.Module):
     def __init__(self, n_words):
         super(CycleLoss, self).__init__()
 
-        self.model = TransformerModel(631, n_words*2, 8, 160, 6)
+        self.model = TransformerModel(631, n_words*2, 2, 160, 6)
         self.linear_out = nn.Linear(631*n_words*2, 1)
 
     def forward(self, x, y):

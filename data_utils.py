@@ -314,9 +314,13 @@ if __name__ == '__main__':
 
     print ('-' * 10)
     print ('Train iterator')
-    for batch in corpus.get_iterator('train', bsz=9, bptt=100, augment_transpose=True, augment_stretch=True):
+    iter = corpus.get_iterator('test', bsz=9, bptt=100, augment_transpose=True, augment_stretch=True)
+    for batch in iter:
+        print('.')
+
+    for batch in iter:
         print(batch)
-        break
+
 
     for batch in corpus.get_iterator('valid', bsz=3, bptt=10):
         print(batch)
