@@ -202,11 +202,14 @@ for epoch in range(0, opt.n_epochs):
 
         run_loss_AA += loss_cycle
 
-        if i % 100:
-            print("Epoch: {i}")
-            print(f"GAN loss: {run_loss_AB +  run_loss_BA}")
-            print(f"Autoencoder loss: {run_loss_AA}")
-            print(f"Discriminator loss: {run_loss_D_A +  run_loss_D_B}")
+        if i % 100 == 99:
+            print(f"Epoch: {i}")
+            print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i}")
+            print(f"Autoencoder loss: {run_loss_AA / i}")
+            print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
+
+        del real_A
+        del real_B
 
     # Update learning rates
     lr_scheduler_G.step()
