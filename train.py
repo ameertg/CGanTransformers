@@ -76,11 +76,7 @@ Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
 target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
-nes_corpus = get_lm_corpus(opt.nes, 'nesmdb')
-nes_corpus_iter = nes_corpus.get_iterator('valid', bsz=opt.batchSize, bptt=n_words, device=device)
-lakh_corpus = get_lm_corpus(opt.lakh, 'nesmdb')
-lakh_corpus_iter = lakh_corpus.get_iterator('test', bsz=opt.batchSize, bptt=n_words, device=device)
-
+data_stream = torch.load('data.pth')
 
 
 results = {'GAN_AB': [], 'GAN_BA': [],
@@ -93,7 +89,6 @@ results = {'GAN_AB': [], 'GAN_BA': [],
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
 
-    data_stream = zip(iter(nes_corpus_iter), iter(lakh_corpus_iter))
     for i, ((real_A, bptt), (real_B, _)) in enumerate(tqdm(data_stream)):
 
         ###### Generators A2B and B2A ######

@@ -83,7 +83,7 @@ class Generator(nn.Module):
         self.custom_transformer = True
         self.model = TransformerModel(631, n_words, 2, 120, 6)
 
-    def forward(self, x, bptt):
+    def forward(self, x):
         in_shape = x.shape
         x = self.model(x)
         x = Sampler.gumbel_softmax(x, 0.1)
