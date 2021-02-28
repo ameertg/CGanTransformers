@@ -88,8 +88,17 @@ results = {'GAN_AB': [], 'GAN_BA': [],
 
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
+    run_loss_AB = 0
+    run_loss_BA = 0
+    run_loss_D_A = 0
+    run_loss_C_A = 0
+    run_loss_C_B = 0
+    run_loss_AA = 0
 
-    for i, (real_A, real_B) in enumerate(tqdm(data_stream)):
+    for i, (nes, lakh) in enumerate(tqdm(data_stream)):
+
+        real_A = nes.clone().detach().to(device)
+        real_B = lakh.clone().detach().to(device)
 
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()
@@ -116,16 +125,12 @@ for epoch in range(0, opt.n_epochs):
         loss_G.backward()
         optimizer_G.step()
 
-        # if i == 0:
-        #     results['GAN_AB'].append(loss_GAN_A2B.item())
-        #     results['GAN_BA'].append(loss_GAN_B2A.item())
-        #     results['C_A'].append(loss_cycle_ABA.item())
-        #     results['C_B'].append(loss_cycle_BAB.item())
-        # else:
-        #     results['GAN_AB'][-1] += loss_GAN_A2B.item()
-        #     results['GAN_BA'][-1] += loss_GAN_B2A.item()
-        #     results['C_A'][-1] += loss_cycle_ABA.item()
-        #     results['C_B'][-1] += loss_cycle_BAB.item()
+        run_loss_AB += loss_GAN_A2B
+        run_loss_BA += loss_GAN_B2A
+        run_loss_C_A += loss_cycle_ABA
+        run_loss_C_B += loss_cycle_BAB
+
+
         ###################################
 
         ###### Discriminator A ######
@@ -146,6 +151,8 @@ for epoch in range(0, opt.n_epochs):
         optimizer_D_A.step()
         ###################################
 
+        run_loss_D_A += loss_D_A
+
         ###### Discriminator B ######
         optimizer_D_B.zero_grad()
 
@@ -164,14 +171,7 @@ for epoch in range(0, opt.n_epochs):
         optimizer_D_B.step()
 
 
-        # if i == 0:
-        #     results['D_A'].append(loss_D_A.item())
-        #     results['D_B'].append(loss_D_B.item())
-        # else:
-        #     results['D_A'][-1] += loss_D_A.item()
-        #     results['D_B'][-1] += loss_D_B.item()
-
-        ###################################
+        run_loss_D_B += loss_D_B
 
         ###### Cycle loss ######
         optimizer_cycle.zero_grad()
@@ -198,11 +198,7 @@ for epoch in range(0, opt.n_epochs):
 
         optimizer_cycle.step()
 
-        # if i == 0:
-        #     results['AA'].append(loss_cycle.item())
-        # else:
-        #     results['AA'][-1] += loss_cycle.item()
-        ###################################
+        run_loss_AA += loss_cycle
 
 
     # Update learning rates
@@ -210,6 +206,14 @@ for epoch in range(0, opt.n_epochs):
     lr_scheduler_D_A.step()
     lr_scheduler_D_B.step()
     lr_scheduler_cycle.step()
+
+    results['GAN_AB'].append(run_loss_AB.item())
+    results['GAN_BA'].append(run_loss_BA.item())
+    results['D_A'].append(run_loss_D_A.item())
+    results['D_B'].append(run_loss_D_B.item())
+    results['C_A'].append(run_loss_C_A.item())
+    results['C_B'].append(run_loss_C_B.item())
+    results['AA'] .append(run_loss_AA.item())
 
     for key in results.keys():
         print(f'{key} loss: {results[key][-1]}')
