@@ -302,26 +302,22 @@ def get_lm_corpus(datadir, dataset):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='unit test')
-    parser.add_argument('--datadir', type=str, default='../data/text8',
-                        help='location of the data corpus')
-    parser.add_argument('--dataset', type=str, default='text8',
-                        choices=['ptb', 'wt2', 'wt103', 'lm1b', 'enwik8', 'text8', 'nesmdb'],
-                        help='dataset name')
+    parser.add_argument('--nes', type=str, default='data/nesmdb_tx1',
+                        help='nes location')
+    parser.add_argument('--lakh', type=str, default='data/5k_poprock_tx1',
+                        help='lakh location')
+    parser.add_argument('--set', type=str, default='train', choices=['train', 'test'])
+    parser.add_argument('--output', type=str, default='data.pth')
     args = parser.parse_args()
 
-    corpus = get_lm_corpus(args.datadir, args.dataset)
-    print('Vocab size : {}'.format(len(corpus.vocab.idx2sym)))
+    nes = get_lm_corpus(args.nes, 'nesmbd').get_iterator(args.set, bsz=10, bptt=40)
+    lakh = get_lm_corpus(args.nes, 'nesmbd').get_iterator(args.set, bsz=10, bptt=40)
 
-    print ('-' * 10)
-    print ('Train iterator')
-    iter = corpus.get_iterator('test', bsz=9, bptt=100, augment_transpose=True, augment_stretch=True)
-    for batch in iter:
-        print('.')
+    list1 = []
+    list2 = []
+    for i in nes:
+        list1.append(i[0].clone())
+    for i in lakh:
+        list2.append(i[0].clone())
 
-    for batch in iter:
-        print(batch)
-
-
-    for batch in corpus.get_iterator('valid', bsz=3, bptt=10):
-        print(batch)
-        break
+    torch.save(list(zip(list1, list2)), args.output)
