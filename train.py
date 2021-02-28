@@ -89,26 +89,26 @@ results = {'GAN_AB': [], 'GAN_BA': [],
 ###### Training ######
 for epoch in range(0, opt.n_epochs):
 
-    for i, ((real_A, bptt), (real_B, _)) in enumerate(tqdm(data_stream)):
+    for i, (real_A, real_B) in enumerate(tqdm(data_stream)):
 
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()
 
         # GAN loss
-        fake_B = netG_A2B(real_A, bptt)
+        fake_B = netG_A2B(real_A)
         pred_fake = netD_B(fake_B).float()
 
         loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
 
-        fake_A = netG_B2A(real_B, bptt)
+        fake_A = netG_B2A(real_B)
         pred_fake = netD_A(fake_A).float()
         loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
         # Cycle loss
-        recovered_A = netG_B2A(fake_B, bptt)
+        recovered_A = netG_B2A(fake_B)
         loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
 
-        recovered_B = netG_A2B(fake_A, bptt)
+        recovered_B = netG_A2B(fake_A)
         loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
         # Total loss
@@ -116,16 +116,16 @@ for epoch in range(0, opt.n_epochs):
         loss_G.backward()
         optimizer_G.step()
 
-        if i == 0:
-            results['GAN_AB'].append(loss_GAN_A2B.item())
-            results['GAN_BA'].append(loss_GAN_B2A.item())
-            results['C_A'].append(loss_cycle_ABA.item())
-            results['C_B'].append(loss_cycle_BAB.item())
-        else:
-            results['GAN_AB'][-1] += loss_GAN_A2B.item()
-            results['GAN_BA'][-1] += loss_GAN_B2A.item()
-            results['C_A'][-1] += loss_cycle_ABA.item()
-            results['C_B'][-1] += loss_cycle_BAB.item()
+        # if i == 0:
+        #     results['GAN_AB'].append(loss_GAN_A2B.item())
+        #     results['GAN_BA'].append(loss_GAN_B2A.item())
+        #     results['C_A'].append(loss_cycle_ABA.item())
+        #     results['C_B'].append(loss_cycle_BAB.item())
+        # else:
+        #     results['GAN_AB'][-1] += loss_GAN_A2B.item()
+        #     results['GAN_BA'][-1] += loss_GAN_B2A.item()
+        #     results['C_A'][-1] += loss_cycle_ABA.item()
+        #     results['C_B'][-1] += loss_cycle_BAB.item()
         ###################################
 
         ###### Discriminator A ######
@@ -164,12 +164,12 @@ for epoch in range(0, opt.n_epochs):
         optimizer_D_B.step()
 
 
-        if i == 0:
-            results['D_A'].append(loss_D_A.item())
-            results['D_B'].append(loss_D_B.item())
-        else:
-            results['D_A'][-1] += loss_D_A.item()
-            results['D_B'][-1] += loss_D_B.item()
+        # if i == 0:
+        #     results['D_A'].append(loss_D_A.item())
+        #     results['D_B'].append(loss_D_B.item())
+        # else:
+        #     results['D_A'][-1] += loss_D_A.item()
+        #     results['D_B'][-1] += loss_D_B.item()
 
         ###################################
 
@@ -198,10 +198,10 @@ for epoch in range(0, opt.n_epochs):
 
         optimizer_cycle.step()
 
-        if i == 0:
-            results['AA'].append(loss_cycle.item())
-        else:
-            results['AA'][-1] += loss_cycle.item()
+        # if i == 0:
+        #     results['AA'].append(loss_cycle.item())
+        # else:
+        #     results['AA'][-1] += loss_cycle.item()
         ###################################
 
 
