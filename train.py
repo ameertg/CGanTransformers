@@ -56,8 +56,8 @@ netD_B.to(device)
 netC.to(device)
 
 # Lossess
-criterion_GAN = torch.nn.MSELoss()
-criterion_cycle = torch.nn.MSELoss()
+criterion_GAN = torch.nn.CrossEntropyLoss()
+criterion_cycle = torch.nn.CrossEntropyLoss()
 
 # Optimizers & LR schedulers
 optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
@@ -72,9 +72,9 @@ lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(optimizer_D_B, lr_lambda=La
 lr_scheduler_cycle = torch.optim.lr_scheduler.LambdaLR(optimizer_cycle, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 
 # Inputs & targets memory allocation
-Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
-target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
-target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
+Tensor = torch.cuda.LongTensor if torch.cuda.is_available() else torch.LongTensor
+target_real = Variable(Tensor(opt.batchSize).fill_(1), requires_grad=False)
+target_fake = Variable(Tensor(opt.batchSize).fill_(0), requires_grad=False)
 
 data_stream = torch.load('data.pth')
 
@@ -107,12 +107,11 @@ for epoch in range(0, opt.n_epochs):
 
         # GAN loss
         fake_B = netG_A2B(real_A)
-        pred_fake = netD_B(fake_B).float()
-
+        pred_fake = netD_B(fake_B)
         loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
 
         fake_A = netG_B2A(real_B)
-        pred_fake = netD_A(fake_A).float()
+        pred_fake = netD_A(fake_A)
         loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
         # Cycle loss
@@ -123,7 +122,7 @@ for epoch in range(0, opt.n_epochs):
         loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
         # Total loss
-        loss_G = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
+        loss_G = (loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB)
         loss_G.backward()
         optimizer_G.step()
 
@@ -131,7 +130,7 @@ for epoch in range(0, opt.n_epochs):
         run_loss_BA += loss_GAN_B2A
         run_loss_C_A += loss_cycle_ABA
         run_loss_C_B += loss_cycle_BAB
-
+        print(loss_G)
 
         ###################################
 
