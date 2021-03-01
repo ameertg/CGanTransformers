@@ -26,6 +26,7 @@ parser.add_argument('--lr', type=float, default=0.0002, help='initial learning r
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
+parser.add_argument('--gen_train', type=int, default=1, help='number of iterations to wait before training the generator')
 
 opt = parser.parse_args()
 print(opt)
@@ -127,9 +128,10 @@ for epoch in range(0, opt.n_epochs):
         loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
         # Total loss
-        loss_G = ((loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB))*0.25
-        loss_G.backward()
-        optimizer_G.step()
+        if i % opt.gen_train == 0:
+            loss_G = ((loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB))*0.25
+            loss_G.backward()
+            optimizer_G.step()
 
         run_loss_AB += loss_GAN_A2B
         run_loss_BA += loss_GAN_B2A
