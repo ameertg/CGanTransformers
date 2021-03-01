@@ -10,13 +10,11 @@ import torch.nn.functional as F
 
 
 from models import Generator, Discriminator, CycleLoss
-from cgan_utils import plot_grad_flow
 from cgan_utils import LambdaLR
 from data_utils import *
 
 from tqdm import trange
 
-import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
@@ -211,7 +209,6 @@ for epoch in range(0, opt.n_epochs):
             print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i}")
             print(f"Autoencoder loss: {run_loss_AA / i}")
             print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
-            plt.savefig(f'Flow{i}.png')
 
         del real_A
         del real_B
