@@ -4,28 +4,6 @@ import torch
 from torch.autograd import Variable
 import math
 
-class Sampler(object):
-    def sample_gumbel(shape, eps=1e-20):
-        U = torch.rand(shape)
-        return -torch.log(-torch.log(U + eps) + eps)
-
-    def gumbel_softmax_sample(logits, temperature):
-        y = logits + Sampler.sample_gumbel(logits.size()).to(logits.device)
-        return F.softmax(y / temperature, dim=-1)
-
-    def gumbel_softmax(logits, temperature):
-        """
-        input: [*, n_class]
-        return: [*, n_class] an one-hot vector
-        """
-        y = Sampler.gumbel_softmax_sample(logits, temperature)
-        shape = y.size()
-        _, ind = y.max(dim=-1)
-        y_hard = torch.zeros_like(y).view(-1, shape[-1])
-        y_hard.scatter_(1, ind.view(-1, 1), 1)
-        y_hard = y_hard.view(*shape)
-        return (y_hard - y).detach() + y
-
 
 class PositionalEncoding(nn.Module):
 
@@ -54,7 +32,7 @@ class TransformerModel(nn.Module):
         self.pos_encoder = PositionalEncoding(ninp, dropout)
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
-        self.encoder = nn.Embedding(ntoken, ninp)
+        self.encoder = nn.Linear(ntoken, ninp)
         self.ninp = ninp
         self.decoder = nn.Linear(ninp, ntoken)
 
@@ -74,7 +52,6 @@ class TransformerModel(nn.Module):
         return output
 
 
-
 class Generator(nn.Module):
     def __init__(self, n_words):
         super(Generator, self).__init__()
@@ -82,12 +59,13 @@ class Generator(nn.Module):
 
         self.custom_transformer = True
         self.model = TransformerModel(631, n_words, 2, 120, 6)
-
     def forward(self, x):
         in_shape = x.shape
         x = self.model(x)
-        x = Sampler.gumbel_softmax(x, 0.1)
-        x = torch.nonzero(x, as_tuple=True)[2].view(in_shape)
+        x = F.log_softmax(x, dim=-1)
+
+        x = F.gumbel_softmax(x, hard=True)
+
         return x
 
 class Discriminator(nn.Module):
@@ -97,13 +75,13 @@ class Discriminator(nn.Module):
 
         self.custom_transformer = True
         self.model = TransformerModel(631, n_words, 2, 120, 6)
-        self.linear_out = nn.Linear(631 * n_words, 1)
+        self.linear_out = nn.Linear(631 * n_words, 2)
 
     def forward(self, x):
         x = self.model(x)
         x = x.transpose(0, 1).contiguous().view(x.shape[1], -1)
         x = self.linear_out(x)
-        x = torch.sigmoid(x).flatten()
+        x = F.softmax(x, dim=-1)
         return x
 
 class CycleLoss(nn.Module):
@@ -112,12 +90,12 @@ class CycleLoss(nn.Module):
         super(CycleLoss, self).__init__()
 
         self.model = TransformerModel(631, n_words*2, 2, 160, 6)
-        self.linear_out = nn.Linear(631*n_words*2, 1)
+        self.linear_out = nn.Linear(631*n_words*2, 2)
 
     def forward(self, x, y):
         x = torch.cat([x, y])
         x = self.model(x)
         x = x.transpose(0, 1).contiguous().view(x.shape[1], -1)
         x = self.linear_out(x)
-        x = torch.sigmoid(x).view(-1)
+        x = F.softmax(x, dim=-1)
         return x

@@ -6,13 +6,17 @@ import itertools
 from torch.autograd import Variable
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 from models import Generator, Discriminator, CycleLoss
-from cgan_utils import ReplayBuffer
+from cgan_utils import plot_grad_flow
 from cgan_utils import LambdaLR
 from data_utils import *
 
 from tqdm import trange
+
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
@@ -99,8 +103,11 @@ for epoch in range(0, opt.n_epochs):
 
     for i, (nes, lakh) in enumerate(tqdm(data_stream)):
 
+
         real_A = nes.clone().detach().to(device)
         real_B = lakh.clone().detach().to(device)
+        real_A = F.one_hot(real_A, 631).float()
+        real_B = F.one_hot(real_B, 631).float()
 
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()
@@ -115,14 +122,14 @@ for epoch in range(0, opt.n_epochs):
         loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
         # Cycle loss
-        recovered_A = netG_B2A(fake_B)
+        recovered_A = netG_B2A(fake_B).long()
         loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
 
-        recovered_B = netG_A2B(fake_A)
+        recovered_B = netG_A2B(fake_A).long()
         loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
         # Total loss
-        loss_G = (loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB)
+        loss_G = ((loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB))*0.25
         loss_G.backward()
         optimizer_G.step()
 
@@ -130,8 +137,6 @@ for epoch in range(0, opt.n_epochs):
         run_loss_BA += loss_GAN_B2A
         run_loss_C_A += loss_cycle_ABA
         run_loss_C_B += loss_cycle_BAB
-        print(loss_G)
-
         ###################################
 
         ###### Discriminator A ######
@@ -202,10 +207,11 @@ for epoch in range(0, opt.n_epochs):
         run_loss_AA += loss_cycle
 
         if i % 100 == 99:
-            print(f"Epoch: {i}")
+            print(f"Batch/Epoch: {i}/{epoch}")
             print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i}")
             print(f"Autoencoder loss: {run_loss_AA / i}")
             print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
+            plt.savefig(f'Flow{i}.png')
 
         del real_A
         del real_B
