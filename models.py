@@ -58,7 +58,7 @@ class Generator(nn.Module):
 
         self.temp = temp
         self.custom_transformer = True
-        self.model = TransformerModel(631, n_words, 2, 120, 6)
+        self.model = TransformerModel(631, n_words, 2, 120, 2)
     def forward(self, x):
         in_shape = x.shape
         x = self.model(x)
@@ -72,10 +72,9 @@ class Discriminator(nn.Module):
     def __init__(self, n_words):
         super(Discriminator, self).__init__()
 
-
-        self.custom_transformer = True
-        self.model = TransformerModel(631, n_words, 2, 120, 6)
-        self.linear_out = nn.Linear(631 * n_words, 2)
+        self.n_words = n_words
+        self.model = TransformerModel(631, n_words, 2, 120, 2)
+        self.linear_out = nn.Linear(631 * 40, 2)
 
     def forward(self, x):
         x = self.model(x)
@@ -89,8 +88,8 @@ class CycleLoss(nn.Module):
     def __init__(self, n_words):
         super(CycleLoss, self).__init__()
 
-        self.model = TransformerModel(631, n_words*2, 2, 160, 6)
-        self.linear_out = nn.Linear(631*n_words*2, 2)
+        self.model = TransformerModel(631, n_words*2, 2, 120, 2)
+        self.linear_out = nn.Linear(631*40*2, 2)
 
     def forward(self, x, y):
         x = torch.cat([x, y])

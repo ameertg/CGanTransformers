@@ -28,7 +28,7 @@ parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--gen_train', type=int, default=1, help='number of iterations to wait before training the generator')
-parser.add_argument('--temp', type=int, default=0.1, help='number of iterations to wait before training the generator')
+parser.add_argument('--temp', type=float, default=0.1, help='number of iterations to wait before training the generator')
 
 opt = parser.parse_args()
 print(opt)
@@ -36,7 +36,7 @@ print(opt)
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-n_words = 40
+n_words = 80
 ###### Definition of variables ######
 # Networks
 netG_A2B = Generator(n_words, temp=opt.temp)
@@ -244,13 +244,14 @@ for epoch in range(0, opt.n_epochs):
     lr_scheduler_D_B.step()
     lr_scheduler_cycle.step()
 
-    results['GAN_AB'].append(run_loss_AB.item())
-    results['GAN_BA'].append(run_loss_BA.item())
-    results['D_A'].append(run_loss_D_A.item())
-    results['D_B'].append(run_loss_D_B.item())
-    results['C_A'].append(run_loss_C_A.item())
-    results['C_B'].append(run_loss_C_B.item())
-    results['AA'] .append(run_loss_AA.item())
+    n_batches = len(data_stream)
+    results['GAN_AB'].append(run_loss_AB.item() / n_batches * opt.gen_train)
+    results['GAN_BA'].append(run_loss_BA.item() / n_batches * opt.gen_train)
+    results['D_A'].append(run_loss_D_A.item() / n_batches)
+    results['D_B'].append(run_loss_D_B.item() / n_batches)
+    results['C_A'].append(run_loss_C_A.item() / n_batches)
+    results['C_B'].append(run_loss_C_B.item() / n_batches)
+    results['AA'] .append(run_loss_AA.item() / n_batches)
 
     for key in results.keys():
         print(f'{key} loss: {results[key][-1]}')
