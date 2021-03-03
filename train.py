@@ -28,6 +28,7 @@ parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--gen_train', type=int, default=1, help='number of iterations to wait before training the generator')
+parser.add_argument('--temp', type=int, default=0.1, help='number of iterations to wait before training the generator')
 
 opt = parser.parse_args()
 print(opt)
@@ -38,8 +39,8 @@ if torch.cuda.is_available() and not opt.cuda:
 n_words = 40
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(n_words)
-netG_B2A = Generator(n_words)
+netG_A2B = Generator(n_words, temp=opt.temp)
+netG_B2A = Generator(n_words, temp=opt.temp)
 netD_A = Discriminator(n_words)
 netD_B = Discriminator(n_words)
 netC = CycleLoss(n_words)
@@ -234,6 +235,8 @@ for epoch in range(0, opt.n_epochs):
 
         del real_A
         del real_B
+        del fake_A
+        del fake_B
 
     # Update learning rates
     lr_scheduler_G.step()
@@ -259,14 +262,14 @@ for epoch in range(0, opt.n_epochs):
     # torch.save(netD_A.state_dict(), 'output/netD_A.pth')
     # torch.save(netD_B.state_dict(), 'output/netD_B.pth')
     # torch.save(netC.state_dict(), 'output/netC.pth')
-    
+
     save_checkpointFull(f'output/fullModel_{epoch}.pth',
                         genAB = netG_A2B,
                         genBA = netG_B2A,
                         discA = netD_A,
                         discB = netD_B,
                         cycleL = netC)
-    
+
     save_checkpointFull(f'output/fullModelOptims_{epoch}.pth',
                     gen_o = optimizer_G,
                     discA_o = optimizer_D_A,
