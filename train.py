@@ -45,11 +45,6 @@ netC = CycleLoss(n_words)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-if torch.cuda.device_count() > 1:
-  print("Let's use", torch.cuda.device_count(), "GPUs!")
-  # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-  netG_A2B = nn.DataParallel(netG_A2B)
-  netG_B2A = nn.DataParallel(netG_B2A)
 
 
 netG_A2B.to(device)
@@ -109,41 +104,49 @@ for epoch in range(0, opt.n_epochs):
         real_B = F.one_hot(real_B, 631).float()
 
         ###### Generators A2B and B2A ######
-        optimizer_G.zero_grad()
-
-        # GAN loss
-        fake_B = netG_A2B(real_A)
-        pred_fake = netD_B(fake_B)
-        loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
-
-        fake_A = netG_B2A(real_B)
-        pred_fake = netD_A(fake_A)
-        loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
-
-        # Cycle loss
-        recovered_A = netG_B2A(fake_B).long()
-        loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
-
-        recovered_B = netG_A2B(fake_A).long()
-        loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
-
-        # Total loss
         if i % opt.gen_train == 0:
+            optimizer_G.zero_grad()
+
+            # GAN loss
+            fake_B = netG_A2B(real_A)
+            pred_fake = netD_B(fake_B)
+            loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
+
+            fake_A = netG_B2A(real_B)
+            pred_fake = netD_A(fake_A)
+            loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
+
+            # Cycle loss
+            recovered_A = netG_B2A(fake_B).long()
+            loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
+
+            recovered_B = netG_A2B(fake_A).long()
+            loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
+
+            # Total loss
             loss_G = ((loss_GAN_A2B + loss_GAN_B2A) + (loss_cycle_ABA + loss_cycle_BAB))*0.25
+
             loss_G.backward()
             optimizer_G.step()
 
-        run_loss_AB += loss_GAN_A2B
-        run_loss_BA += loss_GAN_B2A
-        run_loss_C_A += loss_cycle_ABA
-        run_loss_C_B += loss_cycle_BAB
+            run_loss_AB += loss_GAN_A2B
+            run_loss_BA += loss_GAN_B2A
+            run_loss_C_A += loss_cycle_ABA
+            run_loss_C_B += loss_cycle_BAB
+        else:
+            with torch.no_grad():
+                # GAN loss
+                fake_B = netG_A2B(real_A)
+                fake_A = netG_B2A(real_B)
+
+
         ###################################
 
         ###### Discriminator A ######
         optimizer_D_A.zero_grad()
 
         # Real loss
-        pred_real = netD_A(real_A)
+        pred_real = netD_A(real_A.detach())
         loss_D_real = criterion_GAN(pred_real, target_real)
 
         # Fake loss
@@ -163,7 +166,7 @@ for epoch in range(0, opt.n_epochs):
         optimizer_D_B.zero_grad()
 
         # Real loss
-        pred_real = netD_B(real_B)
+        pred_real = netD_B(real_B.detach())
         loss_D_real = criterion_GAN(pred_real, target_real)
 
         # Fake loss
@@ -208,7 +211,7 @@ for epoch in range(0, opt.n_epochs):
 
         if i % 100 == 99:
             print(f"Batch/Epoch: {i}/{epoch}")
-            print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i}")
+            print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i * opt.gen_train}")
             print(f"Autoencoder loss: {run_loss_AA / i}")
             print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
 
