@@ -42,7 +42,7 @@ def save_checkpoint(model, optimizer, path, epoch):
 def save_checkpointFull(path, **kwargs):
     for model in kwargs:
         if isinstance(kwargs[model], torch.nn.DataParallel):
-            kwargs[model] = kwargs[item].module.state_dict()
+            kwargs[model] = kwargs[model].module.state_dict()
         else:
-            kwargs[model] = kwargs[item].state_dict()
+            kwargs[model] = kwargs[model].state_dict()
     torch.save(kwargs, path)
