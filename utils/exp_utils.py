@@ -38,3 +38,11 @@ def create_exp_dir(dir_path, scripts_to_save=None, debug=False):
 def save_checkpoint(model, optimizer, path, epoch):
     torch.save(model, os.path.join(path, 'model_{}.pt'.format(epoch)))
     torch.save(optimizer.state_dict(), os.path.join(path, 'optimizer_{}.pt'.format(epoch)))
+
+def save_checkpointFull(path, **kwargs):
+    for model in kwargs:
+        if isinstance(kwargs[model], torch.nn.DataParallel):
+            kwargs[model] = kwargs[item].module.state_dict()
+        else:
+            kwargs[model] = kwargs[item].state_dict()
+    torch.save(kwargs, path)

@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from models import Generator, Discriminator, CycleLoss
 from cgan_utils import LambdaLR
 from data_utils import *
+from utils.exp_utils import save_checkpointFull
 
 from tqdm import trange
 
@@ -45,6 +46,22 @@ netC = CycleLoss(n_words)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+
+if opt.epoch > 0:
+    print(f"Attempting to start from epoch {opt.epoch}")
+    checkpoint = torch.load(f'output/fullModel_{opt.epoch}.pth')
+    netG_A2B.load_state_dict(checkpoint['genAB'])
+    netG_B2A.load_state_dict(checkpoint['genBA'])
+    netD_A.load_state_dict(checkpoint['discA'])
+    netD_B.load_state_dict(checkpoint['discB'])
+    netC.load_state_dict(checkpoint['cycleL'])
+
+    checkpoint = torch.load(f'output/fullModelOptims_{opt.epoch}.pth')
+    optimizer_G.load_state_dict(checkpoint['gen_o'])
+    optimizer_D_A.load_state_dict(checkpoint['discA_o'])
+    optimizer_D_B.load_state_dict(checkpoint['discB_o'])
+    optimizer_cycle.load_state_dict(checkpoint['cycleL_o'])
 
 
 netG_A2B.to(device)
@@ -237,9 +254,23 @@ for epoch in range(0, opt.n_epochs):
 
     # Save models checkpoints
     torch.save(results, 'output/results.pth')
-    torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
-    torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
-    torch.save(netD_A.state_dict(), 'output/netD_A.pth')
-    torch.save(netD_B.state_dict(), 'output/netD_B.pth')
-    torch.save(netC.state_dict(), 'output/netC.pth')
+    # torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
+    # torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
+    # torch.save(netD_A.state_dict(), 'output/netD_A.pth')
+    # torch.save(netD_B.state_dict(), 'output/netD_B.pth')
+    # torch.save(netC.state_dict(), 'output/netC.pth')
+    
+    save_checkpointFull(f'output/fullModel_{epoch}.pth',
+                        genAB = netG_A2B,
+                        genBA = netG_B2A,
+                        discA = netD_A,
+                        discB = netD_B,
+                        cycleL = netC)
+    
+    save_checkpointFull(f'output/fullModelOptims_{epoch}.pth',
+                    gen_o = optimizer_G,
+                    discA_o = optimizer_D_A,
+                    discB_o = optimizer_D_B,
+                    cycleL_o = optimizer_cycle)
+
 ###################################
