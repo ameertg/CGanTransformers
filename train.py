@@ -33,17 +33,14 @@ parser.add_argument('--temp', type=float, default=0.1, help='number of iteration
 opt = parser.parse_args()
 print(opt)
 
-if torch.cuda.is_available() and not opt.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-
-n_words = 80
+nin_dims = 80
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(n_words, temp=opt.temp)
-netG_B2A = Generator(n_words, temp=opt.temp)
-netD_A = Discriminator(n_words)
-netD_B = Discriminator(n_words)
-netC = CycleLoss(n_words)
+netG_A2B = Generator(nin_dims)
+netG_B2A = Generator(nin_dims)
+netD_A = Discriminator(nin_dims)
+netD_B = Discriminator(nin_dims)
+netC = CycleLoss(nin_dims)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -113,6 +110,7 @@ for epoch in range(0, opt.n_epochs):
     run_loss_C_B = 0
     run_loss_AA = 0
 
+    temp = 1/(opt.n_epochs - epoch)
     for i, (nes, lakh) in enumerate(tqdm(data_stream)):
 
 
@@ -126,11 +124,11 @@ for epoch in range(0, opt.n_epochs):
             optimizer_G.zero_grad()
 
             # GAN loss
-            fake_B = netG_A2B(real_A)
+            fake_B = netG_A2B(real_A, temp)
             pred_fake = netD_B(fake_B)
             loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
 
-            fake_A = netG_B2A(real_B)
+            fake_A = netG_B2A(real_B, temp)
             pred_fake = netD_A(fake_A)
             loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 

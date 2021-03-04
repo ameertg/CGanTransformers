@@ -53,18 +53,16 @@ class TransformerModel(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, n_words, temp):
+    def __init__(self, n_words):
         super(Generator, self).__init__()
 
-        self.temp = temp
         self.custom_transformer = True
         self.model = TransformerModel(631, n_words, 2, 120, 2)
-    def forward(self, x):
+    def forward(self, x, temp=0.1):
         in_shape = x.shape
         x = self.model(x)
         x = F.log_softmax(x, dim=-1)
-
-        x = F.gumbel_softmax(x, tau=self.temp, hard=True)
+        x = F.gumbel_softmax(x, tau=temp, hard=True)
 
         return x
 
