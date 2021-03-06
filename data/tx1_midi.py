@@ -2,6 +2,7 @@ from collections import defaultdict
 import tempfile
 import pickle
 from tqdm import tqdm
+import zipfile
 
 def midi_to_tx1(midi):
   import pretty_midi
@@ -150,8 +151,12 @@ if __name__ == "__main__":
         try:
           tx1_representation = midi_to_tx1(os.path.join(in_dir,fname))
         except Exception as e:
-          print(e)
+          print(i, fname, e)
           
         with open(os.path.join(out_dir,fname.split('.')[0]) + '.txt','w') as f:
             f.write(tx1_representation)
 
+    lista_files = os.listdir(out_dir)
+    with zipfile.ZipFile('tx1ConversionOut.zip', 'w') as zipMe:        
+        for fname in tqdm(lista_files):
+            zipMe.write(os.path.join(out_dir,fname), compress_type=zipfile.ZIP_DEFLATED)
