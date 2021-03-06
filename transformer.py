@@ -52,9 +52,9 @@ class TransformerModel(nn.Module):
         return output
 
 
-class Generator(nn.Module):
+class GeneratorT(nn.Module):
     def __init__(self, n_words):
-        super(Generator, self).__init__()
+        super(GeneratorT, self).__init__()
 
         self.custom_transformer = True
         self.model = TransformerModel(631, n_words, 2, 120, 2)
@@ -66,9 +66,9 @@ class Generator(nn.Module):
 
         return x
 
-class Discriminator(nn.Module):
+class DiscriminatorT(nn.Module):
     def __init__(self, n_words):
-        super(Discriminator, self).__init__()
+        super(DiscriminatorT, self).__init__()
 
         self.n_words = n_words
         self.model = TransformerModel(631, n_words, 2, 120, 2)
@@ -81,10 +81,10 @@ class Discriminator(nn.Module):
         x = F.softmax(x, dim=-1)
         return x
 
-class CycleLoss(nn.Module):
+class CycleLossT(nn.Module):
 
     def __init__(self, n_words):
-        super(CycleLoss, self).__init__()
+        super(CycleLossT, self).__init__()
 
         self.model = TransformerModel(631, n_words*2, 2, 120, 2)
         self.linear_out = nn.Linear(631*40*2, 2)

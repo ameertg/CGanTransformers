@@ -9,7 +9,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-from models import Generator, Discriminator, CycleLoss
+from transformer import GeneratorT, DiscriminatorT, CycleLossT
+from lstm import GeneratorRNN, DiscriminatorRNN, CycleLossRNN
+
 from cgan_utils import LambdaLR
 from data_utils import *
 from utils.exp_utils import save_checkpointFull
@@ -29,6 +31,8 @@ parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--gen_train', type=int, default=1, help='number of iterations to wait before training the generator')
 parser.add_argument('--temp', type=float, default=0.1, help='number of iterations to wait before training the generator')
+parser.add_argument('--arch', type=str, default='transformer', help='architecture to use')
+
 
 opt = parser.parse_args()
 print(opt)
@@ -36,11 +40,18 @@ print(opt)
 nin_dims = 80
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(nin_dims)
-netG_B2A = Generator(nin_dims)
-netD_A = Discriminator(nin_dims)
-netD_B = Discriminator(nin_dims)
-netC = CycleLoss(nin_dims)
+if opt.arch == 'transformer':
+    netG_A2B = GeneratorT(nin_dims)
+    netG_B2A = GeneratorT(nin_dims)
+    netD_A = DiscriminatorT(nin_dims)
+    netD_B = DiscriminatorT(nin_dims)
+    netC = CycleLossT(nin_dims)
+else:
+    netG_A2B = GeneratorRNN(128, 1, 128, bidirectional=False, dropout=0.1, attn='dot', tied=False)
+    netG_B2A = GeneratorRNN(128, 1, 128, bidirectional=False, dropout=0.1, attn='dot', tied=False)
+    netD_A = DiscriminatorRNN(128, 1, 128, bidirectional=False, dropout=0.1)
+    netD_B = DiscriminatorRNN(128, 1, 128, bidirectional=False, dropout=0.1)
+    netC = CycleLossRNN(128, 1, 128, bidirectional=False, dropout=0.1)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -133,10 +144,10 @@ for epoch in range(0, opt.n_epochs):
             loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
             # Cycle loss
-            recovered_A = netG_B2A(fake_B).long()
+            recovered_A = netG_B2A(fake_B, temp)
             loss_cycle_ABA = criterion_cycle(netC(real_A, recovered_A), target_real)
 
-            recovered_B = netG_A2B(fake_A).long()
+            recovered_B = netG_A2B(fake_A, temp)
             loss_cycle_BAB = criterion_cycle(netC(real_B, recovered_B), target_real)
 
             # Total loss

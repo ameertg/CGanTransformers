@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from torch.utils.data import DataLoader, Dataset
+
 from utils.vocabulary import Vocab
 
 class LMOrderedIterator(object):
@@ -298,6 +300,8 @@ def get_lm_corpus(datadir, dataset):
         torch.save(corpus, fn)
 
     return corpus
+
+
 
 if __name__ == '__main__':
     import argparse
