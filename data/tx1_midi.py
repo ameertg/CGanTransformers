@@ -1,6 +1,7 @@
 from collections import defaultdict
 import tempfile
 import pickle
+from tqdm import tqdm
 
 def midi_to_tx1(midi):
   import pretty_midi
@@ -141,12 +142,16 @@ if __name__ == "__main__":
     import os
     import pretty_midi
     import pickle
-    in_dir = '5322LakhPopRockAdapted'
+    in_dir = 'test_out'
     out_dir = '5322LakhPopRockTX1'
-    for i,fname in enumerate(os.listdir(in_dir)):
-        print(i)
+    for i,fname in enumerate(tqdm(os.listdir(in_dir))):
+        #print(i)
         #midi = pretty_midi.PrettyMIDI(os.path.join(in_dir,fname))
-        tx1_representation = midi_to_tx1(os.path.join(in_dir,fname))
+        try:
+          tx1_representation = midi_to_tx1(os.path.join(in_dir,fname))
+        except Exception as e:
+          print(e)
+          
         with open(os.path.join(out_dir,fname.split('.')[0]) + '.txt','w') as f:
             f.write(tx1_representation)
 
