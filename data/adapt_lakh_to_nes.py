@@ -51,23 +51,26 @@ def emit_nesmdb_midi_examples(
     output_max_num_seconds=180.):
   midi_name = os.path.split(midi_fp)[1].split('.')[0]
 
-  print("start of fn call")
+  #print("start of fn call")
 
   if min_num_instruments <= 0:
     raise ValueError()
 
   # Ignore unusually large MIDI files (only ~25 of these in the dataset)
   if os.path.getsize(midi_fp) > (512 * 1024): #512K
+    drops["largeFile"] +=1
     return
 
   try:
     midi = pretty_midi.PrettyMIDI(midi_fp)
   except:
+    drops["badMidiDecode"] +=1
     return
 
   # Filter MIDIs with extreme length
   midi_len = midi.get_end_time()
   if midi_len < filter_mid_len_below_seconds or midi_len > filter_mid_len_above_seconds:
+    drops["too long or short"] +=1
     return
 
   # Filter out negative times and quantize to audio samples
@@ -75,6 +78,7 @@ def emit_nesmdb_midi_examples(
     for n in ins.notes:
       if filter_mid_bad_times:
         if n.start < 0 or n.end < 0 or n.end < n.start:
+          drops["negative times"] +=1
           return
       n.start = round(n.start * 44100.) / 44100.
       n.end = round(n.end * 44100.) / 44100.
@@ -95,6 +99,7 @@ def emit_nesmdb_midi_examples(
       instruments_normal_range.append(ins)
   instruments = instruments_normal_range
   if len(instruments) < min_num_instruments:
+    drops["not enough instruments after range drop"] +=1
     return
 
   # Sort notes for polyphonic filtering and proper saving
@@ -107,6 +112,7 @@ def emit_nesmdb_midi_examples(
   # Filter out polyphonic instruments
   instruments = [i for i in instruments if instrument_is_monophonic(i)]
   if len(instruments) < min_num_instruments:
+    drops["not enough instruments after polyphonic drop"] +=1
     return
 
   # Filter out duplicate instruments
@@ -120,6 +126,7 @@ def emit_nesmdb_midi_examples(
         uniques.add(pitches)
     instruments = instruments_unique
     if len(instruments) < min_num_instruments:
+      drops["not enough instruments after duplicate drop"] +=1
       return
 
   # TODO: Find instruments that have a substantial fraction of the number of total notes
@@ -241,6 +248,9 @@ def emit_nesmdb_midi_examples(
 
         nes_ins.notes.append(pretty_midi.Note(nvelocity, npitch, nstart, nend))
 
+    os.system( 'clear' )
+    print(f"{midi_name}\n{drops}")
+
     # Add instruments to MIDI file
     midi = pretty_midi.PrettyMIDI(initial_tempo=120, resolution=22050)
     midi.instruments.extend([p1, p2, tr, no])
@@ -275,5 +285,22 @@ if __name__ == '__main__':
   def _task(x):
     emit_nesmdb_midi_examples(x, out_dir)
 
-  with mp.Pool(8) as p:
+  drops = mp.Manager().dict({
+  'largeFile' : 0,
+  'badMidiDecode' : 0,
+  'too long or short' : 0,
+  'negative times' : 0,
+  'not enough instruments' : 0,
+  'not enough instruments after range drop' : 0,
+  'not enough instruments after polyphonic drop' : 0,
+  'not enough instruments after duplicate drop' : 0,
+  '' : 0,
+  '' : 0,
+  '' : 0,
+  '' : 0,
+  '' : 0
+  })
+
+
+  with mp.Pool(8,initargs=(drops,)) as p:
     r = list(tqdm(p.imap(_task, midi_fps), total=len(midi_fps)))

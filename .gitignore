@@ -107,3 +107,8 @@ output/B/
 
 # model checkpoints
 *.pth
+
+#Test data stores
+test_in/*
+test_out/*
+*/.DS_Store
