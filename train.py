@@ -24,7 +24,7 @@ parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=10, help='size of the batches')
 parser.add_argument('--nes', type=str, default='data/nesmdb_tx1', help='root directory of the dataset')
-parser.add_argument('--lakh', type=str, default='data/5k_poprock_tx1', help='root directory of the dataset')
+parser.add_argument('--lakh', type=str, default='data/5k_poprock_tx1_noPerms', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
@@ -100,7 +100,11 @@ Tensor = torch.cuda.LongTensor if torch.cuda.is_available() else torch.LongTenso
 target_real = Variable(Tensor(opt.batchSize).fill_(1), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0), requires_grad=False)
 
-data_stream = torch.load('data.pth')
+nes = get_lm_corpus(opt.nes, 'nesmbd')
+lakh = get_lm_corpus(opt.lakh, 'nesmbd')
+
+nes_iter = nes.get_iterator('test', bsz=10, bptt=40)
+lakh_iter = lakh.get_iterator('test', bsz=10, bptt=40)
 
 
 results = {'GAN_AB': [], 'GAN_BA': [],
@@ -122,9 +126,10 @@ for epoch in range(0, opt.n_epochs):
     run_loss_AA = 0
 
     temp = 1/(opt.n_epochs - epoch)
-    for i, (nes, lakh) in enumerate(tqdm(data_stream)):
-
-
+    data_stream = zip(nes_iter, lakh_iter)
+    for i, ((nes, _), (lakh, _)) in enumerate(tqdm(data_stream)):
+        print('\n')
+        
         real_A = nes.clone().detach().to(device)
         real_B = lakh.clone().detach().to(device)
         real_A = F.one_hot(real_A, 631).float()
@@ -238,9 +243,9 @@ for epoch in range(0, opt.n_epochs):
 
         if i % 100 == 99:
             print(f"Batch/Epoch: {i}/{epoch}")
-            print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i * opt.gen_train}")
+            print(f"GAN loss: {0.5*(run_loss_AB +  run_loss_BA) / i * opt.gen_train}")
             print(f"Autoencoder loss: {run_loss_AA / i}")
-            print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
+            print(f"Discriminator loss: {0.5*(run_loss_D_A +  run_loss_D_B) /i}")
 
         del real_A
         del real_B
