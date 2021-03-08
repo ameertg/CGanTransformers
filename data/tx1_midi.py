@@ -1,8 +1,6 @@
 from collections import defaultdict
 import tempfile
 import pickle
-from tqdm import tqdm
-import zipfile
 
 def midi_to_tx1(midi):
   import pretty_midi
@@ -133,30 +131,61 @@ def tx1_to_midi(tx1):
   eos = pretty_midi.TimeSignature(1, 1, nsamps / 44100.)
   midi.time_signature_changes.append(eos)
 
-  with tempfile.NamedTemporaryFile('rb') as mf:
-    midi.write(mf.name)
-    midi = mf.read()
+#  with tempfile.NamedTemporaryFile('rb') as mf:
+#    midi.write(mf.name)
+#    midi = mf.read()
 
   return midi
+  
+def oneHot_TX1(one_hot):
+    """
+    Takes one-hot outputs of the model and returns a TX1 representation.
+    
+    @param one_hot: tensor of shape (sequence length, batch size, 631)
+    
+    @return outputs list of strings with the tx1 representation of each batch
+    """
+    argm = np.argmax(one_hot.detach().numpy(),axis=2)
+    batch_size = argm.shape[1]
+    outputs = []
+    for b in range(batch_size):
+        toks = [idx2tok[int(i)] for i in argm[:,b]]
+        outputs.append("\n".join(toks))
+    return outputs
 
+#---USE THIS MAIN FOR MIDI TO TX1---
+#if __name__ == "__main__":
+#    import os
+#    import pretty_midi
+#    import pickle
+#    in_dir = '5322LakhPopRockAdapted'
+#    out_dir = '5322LakhPopRockTX1'
+#    for i,fname in enumerate(os.listdir(in_dir)):
+#        print(i)
+#        #midi = pretty_midi.PrettyMIDI(os.path.join(in_dir,fname))
+#        tx1_representation = midi_to_tx1(os.path.join(in_dir,fname))
+#        with open(os.path.join(out_dir,fname.split('.')[0]) + '.txt','w') as f:
+#            f.write(tx1_representation)
+
+#---USE THIS MAIN FOR TX1 TO MIDI---
 if __name__ == "__main__":
     import os
     import pretty_midi
     import pickle
-    in_dir = 'test_out'
-    out_dir = '5322LakhPopRockTX1'
-    for i,fname in enumerate(tqdm(os.listdir(in_dir))):
-        #print(i)
-        #midi = pretty_midi.PrettyMIDI(os.path.join(in_dir,fname))
-        try:
-          tx1_representation = midi_to_tx1(os.path.join(in_dir,fname))
-        except Exception as e:
-          print(i, fname, e)
-          
-        with open(os.path.join(out_dir,fname.split('.')[0]) + '.txt','w') as f:
-            f.write(tx1_representation)
-
-    lista_files = os.listdir(out_dir)
-    with zipfile.ZipFile('tx1ConversionOut.zip', 'w') as zipMe:        
-        for fname in tqdm(lista_files):
-            zipMe.write(os.path.join(out_dir,fname), compress_type=zipfile.ZIP_DEFLATED)
+    import torch
+    import numpy as np
+    
+    with open('tx1_vocab.txt','r') as f: #make a dict mapping indices to TX1 tokens
+        tokens = f.readlines()
+        tokens = [tok.strip('\n') for tok in tokens]
+        idx2tok = {i:tokens[i-1] for i in range(1,631)}
+    idx2tok[0] = '<eos>'
+    
+    in_dir = 'test_tx1_mid_in'
+    out_dir = 'test_tx1_mid_out'
+    for i,fname in enumerate(os.listdir(in_dir)):
+        tensor = torch.load(os.path.join(in_dir,fname))
+        tx1_representations = oneHot_TX1(tensor)
+        for j,rep in enumerate(tx1_representations):
+            midi = tx1_to_midi(rep)
+            midi.write(os.path.join(out_dir,fname.split('.')[0]) + str(j) + '.mid')
