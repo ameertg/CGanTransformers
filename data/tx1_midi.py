@@ -12,9 +12,9 @@ def midi_to_tx1(midi):
 #    mf.write(midi)
 #    mf.seek(0)
 #    midi = pretty_midi.PrettyMIDI(mf.name)
-  
+
   midi = pretty_midi.PrettyMIDI(midi)
-  
+
   ins_names = ['p1', 'p2', 'tr', 'no']
   instruments = sorted(midi.instruments, key=lambda x: ins_names.index(x.name))
   samp_to_events = defaultdict(list)
@@ -136,13 +136,13 @@ def tx1_to_midi(tx1):
 #    midi = mf.read()
 
   return midi
-  
+
 def oneHot_TX1(one_hot):
     """
     Takes one-hot outputs of the model and returns a TX1 representation.
-    
+
     @param one_hot: tensor of shape (sequence length, batch size, 631)
-    
+
     @return outputs list of strings with the tx1 representation of each batch
     """
     argm = np.argmax(one_hot.detach().numpy(),axis=2)
@@ -174,18 +174,32 @@ if __name__ == "__main__":
     import pickle
     import torch
     import numpy as np
-    
+
     with open('tx1_vocab.txt','r') as f: #make a dict mapping indices to TX1 tokens
         tokens = f.readlines()
         tokens = [tok.strip('\n') for tok in tokens]
         idx2tok = {i:tokens[i-1] for i in range(1,631)}
     idx2tok[0] = '<eos>'
-    
-    in_dir = 'test_tx1_mid_in'
-    out_dir = 'test_tx1_mid_out'
-    for i,fname in enumerate(os.listdir(in_dir)):
-        tensor = torch.load(os.path.join(in_dir,fname))
+
+
+    in_file = 'test_tensor' #input file with list of tensors
+    out_dir = 'test_tx1_mid_out' #ouput directory to write midi batches to 
+    with open(in_file, 'rb') as f:
+        tensor_list = pickle.load(f)
+
+    for i,tensor in enumerate(tensor_list):
         tx1_representations = oneHot_TX1(tensor)
         for j,rep in enumerate(tx1_representations):
             midi = tx1_to_midi(rep)
-            midi.write(os.path.join(out_dir,fname.split('.')[0]) + str(j) + '.mid')
+            midi.write(os.path.join(out_dir,str(i) + "_" + str(j) + '.mid'))
+
+
+
+    # in_dir = 'test_tx1_mid_in' #in_dir should have pytorch one hot tensors
+    # out_dir = 'test_tx1_mid_out'
+    # for i,fname in enumerate(os.listdir(in_dir)):
+    #     tensor = torch.load(os.path.join(in_dir,fname))
+    #     tx1_representations = oneHot_TX1(tensor)
+    #     for j,rep in enumerate(tx1_representations):
+    #         midi = tx1_to_midi(rep)
+    #         midi.write(os.path.join(out_dir,fname.split('.')[0]) + str(j) + '.mid')
