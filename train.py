@@ -24,7 +24,7 @@ parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=10, help='size of the batches')
 parser.add_argument('--nes', type=str, default='data/nesmdb_tx1', help='root directory of the dataset')
-parser.add_argument('--lakh', type=str, default='data/5k_poprock_tx1', help='root directory of the dataset')
+parser.add_argument('--lakh', type=str, default='data/5k_poprock_tx1_noPerms', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
@@ -55,41 +55,39 @@ else:
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-
-if opt.epoch > 0:
-    print(f"Attempting to start from epoch {opt.epoch}")
-    checkpoint = torch.load(f'output/fullModel_{opt.epoch}.pth')
-    netG_A2B.load_state_dict(checkpoint['genAB'])
-    netG_B2A.load_state_dict(checkpoint['genBA'])
-    netD_A.load_state_dict(checkpoint['discA'])
-    netD_B.load_state_dict(checkpoint['discB'])
-    netC.load_state_dict(checkpoint['cycleL'])
-
-    checkpoint = torch.load(f'output/fullModelOptims_{opt.epoch}.pth')
-    optimizer_G.load_state_dict(checkpoint['gen_o'])
-    optimizer_D_A.load_state_dict(checkpoint['discA_o'])
-    optimizer_D_B.load_state_dict(checkpoint['discB_o'])
-    optimizer_cycle.load_state_dict(checkpoint['cycleL_o'])
-
-
 netG_A2B.to(device)
 netG_B2A.to(device)
 netD_A.to(device)
 netD_B.to(device)
 netC.to(device)
 
-# Lossess
-criterion_GAN = torch.nn.CrossEntropyLoss()
-criterion_cycle = torch.nn.CrossEntropyLoss()
-
-# Optimizers & LR schedulers
 optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
                                 lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_A = torch.optim.Adam(netD_A.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D_B = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_cycle = torch.optim.Adam(netC.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 
+
+if opt.epoch > 0:
+    print(f"Attempting to start from epoch {opt.epoch}")
+    checkpoint = torch.load(f'output_large/fullModel_{opt.epoch}.pth')
+    netG_A2B.load_state_dict(checkpoint['genAB'])
+    netG_B2A.load_state_dict(checkpoint['genBA'])
+    netD_A.load_state_dict(checkpoint['discA'])
+    netD_B.load_state_dict(checkpoint['discB'])
+    netC.load_state_dict(checkpoint['cycleL'])
+
+    checkpoint = torch.load(f'output_large/fullModelOptims_{opt.epoch}.pth')
+    optimizer_G.load_state_dict(checkpoint['gen_o'])
+    optimizer_D_A.load_state_dict(checkpoint['discA_o'])
+    optimizer_D_B.load_state_dict(checkpoint['discB_o'])
+    optimizer_cycle.load_state_dict(checkpoint['cycleL_o'])
+
+# Lossess
+criterion_GAN = torch.nn.CrossEntropyLoss()
+criterion_cycle = torch.nn.CrossEntropyLoss()
+
+# Optimizers & LR schedulers
 lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(optimizer_D_A, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
 lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(optimizer_D_B, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
@@ -100,7 +98,11 @@ Tensor = torch.cuda.LongTensor if torch.cuda.is_available() else torch.LongTenso
 target_real = Variable(Tensor(opt.batchSize).fill_(1), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0), requires_grad=False)
 
-data_stream = torch.load('data.pth')
+nes = get_lm_corpus(opt.nes, 'nesmbd')
+lakh = get_lm_corpus(opt.lakh, 'nesmbd')
+
+nes_iter = nes.get_iterator('train', bsz=10, bptt=40)
+lakh_iter = lakh.get_iterator('train', bsz=10, bptt=40)
 
 
 results = {'GAN_AB': [], 'GAN_BA': [],
@@ -109,9 +111,9 @@ results = {'GAN_AB': [], 'GAN_BA': [],
  'AA': []}
 ###################################
 
-
+n_batches = 1
 ###### Training ######
-for epoch in range(0, opt.n_epochs):
+for epoch in range(opt.epoch, opt.n_epochs):
     run_loss_AB = 0
     run_loss_BA = 0
     run_loss_D_A = 0
@@ -121,10 +123,12 @@ for epoch in range(0, opt.n_epochs):
     run_loss_C_B = 0
     run_loss_AA = 0
 
-    temp = 1/(opt.n_epochs - epoch)
-    for i, (nes, lakh) in enumerate(tqdm(data_stream)):
-
-
+    temp = 0.1
+    data_stream = zip(nes_iter, lakh_iter)
+    for i, ((nes, _), (lakh, _)) in enumerate(tqdm(data_stream)):
+        if epoch == opt.epoch:
+            n_batches += 1
+ 
         real_A = nes.clone().detach().to(device)
         real_B = lakh.clone().detach().to(device)
         real_A = F.one_hot(real_A, 631).float()
@@ -163,8 +167,8 @@ for epoch in range(0, opt.n_epochs):
         else:
             with torch.no_grad():
                 # GAN loss
-                fake_B = netG_A2B(real_A)
-                fake_A = netG_B2A(real_B)
+                fake_B = netG_A2B(real_A, temp)
+                fake_A = netG_B2A(real_B, temp)
 
 
         ###################################
@@ -238,9 +242,9 @@ for epoch in range(0, opt.n_epochs):
 
         if i % 100 == 99:
             print(f"Batch/Epoch: {i}/{epoch}")
-            print(f"GAN loss: {(run_loss_AB +  run_loss_BA) / i * opt.gen_train}")
+            print(f"GAN loss: {0.5*(run_loss_AB +  run_loss_BA) / i * opt.gen_train}")
             print(f"Autoencoder loss: {run_loss_AA / i}")
-            print(f"Discriminator loss: {(run_loss_D_A +  run_loss_D_B) /i}")
+            print(f"Discriminator loss: {0.5*(run_loss_D_A +  run_loss_D_B) /i}")
 
         del real_A
         del real_B
@@ -253,7 +257,6 @@ for epoch in range(0, opt.n_epochs):
     lr_scheduler_D_B.step()
     lr_scheduler_cycle.step()
 
-    n_batches = len(data_stream)
     results['GAN_AB'].append(run_loss_AB.item() / n_batches * opt.gen_train)
     results['GAN_BA'].append(run_loss_BA.item() / n_batches * opt.gen_train)
     results['D_A'].append(run_loss_D_A.item() / n_batches)
@@ -266,21 +269,21 @@ for epoch in range(0, opt.n_epochs):
         print(f'{key} loss: {results[key][-1]}')
 
     # Save models checkpoints
-    torch.save(results, 'output/results.pth')
+    torch.save(results, 'output_large/results.pth')
     # torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
     # torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
     # torch.save(netD_A.state_dict(), 'output/netD_A.pth')
     # torch.save(netD_B.state_dict(), 'output/netD_B.pth')
     # torch.save(netC.state_dict(), 'output/netC.pth')
 
-    save_checkpointFull(f'output/fullModel_{epoch}.pth',
+    save_checkpointFull(f'output_large/fullModel_{epoch}.pth',
                         genAB = netG_A2B,
                         genBA = netG_B2A,
                         discA = netD_A,
                         discB = netD_B,
                         cycleL = netC)
 
-    save_checkpointFull(f'output/fullModelOptims_{epoch}.pth',
+    save_checkpointFull(f'output_large/fullModelOptims_{epoch}.pth',
                     gen_o = optimizer_G,
                     discA_o = optimizer_D_A,
                     discB_o = optimizer_D_B,
