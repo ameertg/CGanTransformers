@@ -16,9 +16,28 @@
 
 			<h2>What's this?</h2>
 
-			<p>This is a companion page to the study, allowing you to listen to the pieces of music mentioned.</p>
+			<p>This is a companion page to the study, allowing you to listen to 10s samples of the pieces of used for evaluation.</p>
 
-			<p>All audio is in .wav format and should play on the page, contact us if there are any issues.</p>
+			<p>All audio is in .wav format and should play on the page, contact us at the e-mails above if there are any issues.</p>
+
+			<p>All input songs have also been transformed into the NES instrument ensamble, here is a sample from each domain</p>
+			<div class="row">
+				<div class="col-sm">
+					<p><i>Sample Pop Rock Song</i></p>
+					<audio controls class="audio-ctrl">
+						<source src="wavs/2cacf26952083d93aadffc06fe21c452_000_transformer__12.tx1.txt.wav" type="audio/mp3">
+						Your browser does not support the audio element.
+						<!--Take on me 2c5d461823e24c829498baac3582ee52_000.txt.wav -->
+					</audio>
+				</div>
+				<div class="col-sm">
+					<p><i>Sample NES Game Music Song</i></p>
+					<audio controls class="audio-ctrl">
+						<source src="wavs/2cacf26952083d93aadffc06fe21c452_000_transformer__12.tx1.txt.wav" type="audio/mp3">
+						Your browser does not support the audio element.
+					</audio> 
+				</div>
+			</div>
 
 			<!-- <div class="row">
 				<div class="col-sm">
@@ -30,7 +49,10 @@
 				</div>
 			</div> -->
 
-			<h2 >Section 1: Song assignments </h2>
+		</br></br>
+
+			<h2 > Section 1: Song assignments </h2>
+			Listen to the clips below and use the form to assign each sample to it's input song.
 			<i>TutorialComment: Meant to test consistency and content preservation in a song.<br>
 				9 clips: (Start, middle and end section) x (3 songs)<br>
 				2 sets: lstm, trans</i>
@@ -78,6 +100,8 @@
 					</audio> 
 				</div>
 			</div>
+
+		</br>
 
 			<div class="row sec1">
 				<div class="col-sm">
@@ -133,6 +157,7 @@
 
 
 			<h2 >Section 2: Rhythmic, harmonic, appealingness 3 axis scale</h2>
+			Listen to the clips below and use the form to assign 3 rating values to each song.
 			<i>TutorialComments: Each of 3 samples in a set is from epoch 2,7 or 12 - meant to check efficacy of training.<br>
 				3 songs: for each of 3 epochs<br>
 				4 sets: (lstm, trans) * 2</i>
@@ -262,6 +287,7 @@
 
 
 			<h2 >Section 3: Melody Preservation</h2>
+			Listen to the clips below to rate how well you feel a melody has been preserved and then also indicate your preference between samples.
 			<i>"How well a melody has been preserved 10 scale, indicate preference"
 				TutorialComments: The style transfer testpiece.<br>
 				3 files: Original, transformer_final and lstm_final<br>
