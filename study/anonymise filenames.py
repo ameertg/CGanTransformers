@@ -23,7 +23,7 @@ def replaceAll(string,replacements):
 
 def replaceInFile(fname):
     with open(fname, "rt") as fin:
-        with open("replaced.txt", "wt") as fout:
+        with open("replaced.htm", "wt") as fout:
             for line in fin:
                 fout.write(replaceAll(line,mappings))
 
@@ -34,11 +34,11 @@ def writeOutMappings():
 
 def renameFiles():
     for (old,new) in mappings:
-        #os.rename(old, new)
+        os.rename(old, new)
         print(f"Renamed {old} to {new}")
 
-dirs = ["./wavs/sec1/","./wavs/sec2/"]
+dirs = ["./wavs/sec1/","./wavs/sec2/","./wavs/sec3/"]
 mappings = generateMappings(dirs)
-replaceInFile("input.txt")
+replaceInFile("companion.htm")
 renameFiles()
 writeOutMappings()
