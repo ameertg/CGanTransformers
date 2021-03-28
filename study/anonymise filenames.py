@@ -37,7 +37,7 @@ def renameFiles():
         #os.rename(old, new)
         print(f"Renamed {old} to {new}")
 
-dirs = ["./","./outty/"]
+dirs = ["./wavs/sec1/","./wavs/sec2/"]
 mappings = generateMappings(dirs)
 replaceInFile("input.txt")
 renameFiles()
